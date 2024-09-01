@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client/edge'
 import { withAccelerate } from '@prisma/extension-accelerate'
 import { Jwt } from 'hono/utils/jwt'
 
-export const user = new Hono<{
+const user = new Hono<{
     Bindings : {
         DATABASE_URL : string ,
         JWT_PASSWORD : string
@@ -61,3 +61,5 @@ user.post('/signin', async (c) => {
     return c.json({token})
 
 })
+
+export default user

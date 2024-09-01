@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client/edge'
 import { withAccelerate } from '@prisma/extension-accelerate'
 import { Jwt } from 'hono/utils/jwt'
 
-export const blog = new Hono<{
+const blog = new Hono<{
     Bindings : {
         DATABASE_URL : string ,
         JWT_PASSWORD : string
@@ -20,12 +20,11 @@ blog.use('/*', async (c,next) => {
     const prisma = new PrismaClient({
         datasourceUrl : c.env.DATABASE_URL,
     }).$extends(withAccelerate())
-
     c.set('prisma',prisma)
     await next()
 })
 
-blog.use('/*', async (c,next) => {
+blog.use('*', async (c,next) => {
     const jwt = c.req.header('Authorization')
     if(!jwt){
         c.status(401)
@@ -43,21 +42,53 @@ blog.use('/*', async (c,next) => {
 })
 
 
+
 // Blog-Handle routes
-blog.get('/bulk', (c) => {
-    const userId = c.get('userId')
-    return c.text(userId)
+blog.get('/bulk', async (c) => {
+    const prisma = c.get('prisma')
+    const posts = await prisma.post.findMany();
+	return c.json(posts);
 })
 
-blog.get('/:id', (c) => {
+blog.get('/:id', async (c) => {
     const id = c.req.param('id')
-    return c.text(id)
+    const prisma = c.get('prisma')
+    const post = await prisma.post.findUnique({
+		where: {
+			id
+		}
+	});
+	return c.json(post);
 })
 
-blog.post('/', (c) => {
-    return c.text('Hello Hono!')
+blog.post('/add', async (c) => {
+    const body = await c.req.json()
+    const prisma = c.get('prisma')
+    const post = await prisma.post.create({
+        data : {
+            title : body.title ,
+            content : body.content ,
+            authorId : c.get('userId')
+        }
+    })
+    return c.json({id : post.id})
 })
 
-blog.put('/', (c) => {
-    return c.text('Hello Hono!')
+blog.put('/update', async (c) => {
+    const userId = c.get('userId')
+    const prisma = c.get('prisma')
+    const body = await c.req.json()
+    prisma.post.update({
+        where : {
+            id : body.id ,
+            authorId : userId
+        },
+        data : {
+            title : body.title ,
+            content : body.content
+        }
+    })
+    return c.text('Post Updated')
 })
+
+export default blog
