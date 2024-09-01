@@ -1,8 +1,15 @@
 import { Hono } from 'hono'
-import { user } from './routes/user'
-import { blog } from './routes/blog'
+import { PrismaClient } from '@prisma/client/edge'
+import { withAccelerate } from '@prisma/extension-accelerate'
+import user from './routes/user'
+import blog from './routes/blog'
 
-const app = new Hono()
+const app = new Hono<{
+    Bindings : {
+        DATABASE_URL : string ,
+        JWT_PASSWORD : string
+    }
+}>()
 
 // POST /api/v1/user/signup
 // POST /api/v1/user/signin
