@@ -69,7 +69,17 @@ blog.get('/:id', async (c) => {
     const post = await prisma.post.findUnique({
 		where: {
 			id
-		}
+		} ,
+        select : {
+            id : true ,
+            title : true ,
+            content : true ,
+            author : {
+                select : {
+                    name : true 
+                }
+            }
+        }
 	});
 	return c.json(post);
 })
