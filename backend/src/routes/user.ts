@@ -30,18 +30,22 @@ user.post('/signup', async (c) => {
 
     const body = await c.req.json() ;
     const { success } = SignUpInput.safeParse(body);
+    console.log(body)
 	if (!success) {
 		c.status(400);
 		return c.json({ error: "invalid input" });
 	}
+
     try{
         const res = await c.get('prisma').user.create({
         data : {
             email : body.email ,
-            password : body.password
+            password : body.password ,
+            name : body.name
         }
         })
-        const token = await Jwt.sign({id : res.id},c.env.JWT_PASSWORD)
+        
+        const token = await Jwt.sign({id : res.id , user : res.name},c.env.JWT_PASSWORD)
         return c.json({token})
     }catch(err){
         c.status(403) ;
@@ -69,7 +73,7 @@ user.post('/signin', async (c) => {
         c.status(403)
         return c.json({message : "SignUp first"})
     }
-    const token = await Jwt.sign({id : res.id},c.env.JWT_PASSWORD)
+    const token = await Jwt.sign({id : res.id , user : res.name},c.env.JWT_PASSWORD)
     return c.json({token})
 
 })
