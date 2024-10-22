@@ -19,6 +19,14 @@ model User {
   email    String   @unique
   name     String?
   password String
+  bio          String?  
+  profileImage String?
+  degree       String?
+  position     String?
+  joined       DateTime @default(now())
+  twitter      String?
+  linkedin     String?
+  github       String?
   posts    Post[]
 }
 
@@ -27,6 +35,10 @@ model Post {
   title     String
   content   String
   published Boolean  @default(false)
+  topic     String?
+  likes     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
   author    User     @relation(fields: [authorId], references: [id])
   authorId  String
 }

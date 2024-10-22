@@ -30,7 +30,6 @@ user.post('/signup', async (c) => {
 
     const body = await c.req.json() ;
     const { success } = SignUpInput.safeParse(body);
-    console.log(body)
 	if (!success) {
 		c.status(400);
 		return c.json({ error: "invalid input" });
@@ -51,8 +50,7 @@ user.post('/signup', async (c) => {
         c.status(403) ;
         return c.json({message : "error while signing up"})
     }
-
-})
+}) ;
 
 
 user.post('/signin', async (c) => {
@@ -76,6 +74,108 @@ user.post('/signin', async (c) => {
     const token = await Jwt.sign({id : res.id , user : res.name},c.env.JWT_PASSWORD)
     return c.json({token})
 
-})
+}) ;
+
+user.get('/:id', async (c) => {
+    const prisma = c.get('prisma') ;
+    try {
+    const authorId = c.req.param('id');
+
+    const user = await prisma.user.findUnique({
+        where: {
+        id: authorId,
+        },
+        select: {
+        id: true,
+        name: true,
+        email: true,
+        bio: true,
+        profileImage: true,
+        degree: true,
+        position: true,
+        joined: true,
+        twitter: true,
+        linkedin: true,
+        github: true,
+        }
+    });
+
+    if (!user) {
+        return c.json({
+        success: false,
+        message: 'Author not found'
+        }, 404);
+    }
+
+    const authorData = {
+        ...user,
+        socialLinks: {
+        twitter: user.twitter,
+        linkedin: user.linkedin,
+        github: user.github
+        }
+    };
+    delete authorData.twitter;
+    delete authorData.linkedin;
+    delete authorData.github;
+
+    return c.json(authorData, 200);
+
+    } catch (error) {
+    console.error('Error fetching author:', error);
+    
+    return c.json({
+        success: false,
+        message: 'Failed to fetch author information'
+    }, 500);
+    }
+}
+);
+
+user.put('/:id', async (c) => {
+    const prisma = c.get('prisma') ;
+    const updateData = await c.req.json() ;
+      try {
+        const authorId = c.req.param('id');
+        const updatedUser = await prisma.user.update({
+          where: {
+            id: authorId,
+          },
+          data: {
+            name: updateData.name,
+            email: updateData.email,
+            bio: updateData.bio,
+            profileImage: updateData.profileImage,
+            degree: updateData.degree,
+            position: updateData.position,
+            twitter: updateData.socialLinks.twitter,
+            linkedin: updateData.socialLinks.linkedin,
+            github: updateData.socialLinks.github,
+          },
+        });
+  
+        const { password, ...userWithoutPassword } = updatedUser;
+  
+        return c.json({
+          success: true,
+          message: 'Author information updated successfully',
+          data: userWithoutPassword
+        }, 200);
+      } catch (error : any) {
+        if (error.code === 'P2002') {
+          return c.json({
+            success: false,
+            message: 'Email already exists'
+          }, 409);
+        }
+        console.error('Error updating author:', error);
+        return c.json({
+          success: false,
+          message: 'Failed to update author information'
+        }, 500);
+      }
+    }
+  );
+  
 
 export default user

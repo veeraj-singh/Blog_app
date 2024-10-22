@@ -44,7 +44,6 @@ blog.use('*', async (c,next) => {
 })
 
 
-
 // Blog-Handle routes
 blog.get('/bulk', async (c) => {
     const prisma = c.get('prisma')
@@ -53,6 +52,8 @@ blog.get('/bulk', async (c) => {
             id : true ,
             title : true ,
             content : true ,
+            topic : true ,
+            likes : true ,
             author : {
                 select : {
                     name : true 
@@ -62,6 +63,146 @@ blog.get('/bulk', async (c) => {
     });
 	return c.json(posts);
 })
+
+blog.get('/bulk/user/:authorId', async (c) => {
+    const prisma = c.get('prisma')
+    const authorId = c.req.param('authorId')
+    const posts = await prisma.post.findMany({
+        where: {
+            authorId: authorId,
+        },
+        select : {
+            id : true ,
+            title : true ,
+            content : true ,
+            likes : true ,
+            author : {
+                select : {
+                    name : true 
+                }
+            }
+        }
+    })
+    return c.json(posts);
+})
+
+blog.get('/bulk/topic/:topic', async (c) => {
+    const prisma = c.get('prisma')
+    const topic = c.req.param('topic')
+    const posts = await prisma.post.findMany({
+        where: {
+            topic: topic,
+        },
+        select : {
+            id : true ,
+            title : true ,
+            content : true ,
+            likes : true ,
+            author : {
+                select : {
+                    name : true 
+                }
+            }
+        }
+    })
+    return c.json(posts);
+})
+
+blog.get('/search', async (c) => {
+
+    const prisma = c.get('prisma')
+    const field = c.req.query('field')
+    const term = c.req.query('term')
+    const isSuggestion = c.req.query('suggestion') === 'true'
+  
+    if (!field || !term) {
+      return c.json({ error: 'Missing field or term parameter' }, 400)
+    }
+  
+    try {
+      let results = []
+      const take = isSuggestion ? 5 : 50 
+  
+      switch (field) {
+        case 'author':
+          results = await prisma.user.findMany({
+            where: {
+              OR: [
+                { name: { contains: term, mode: 'insensitive' } },
+                { email: { contains: term, mode: 'insensitive' } }
+              ]
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              ...(isSuggestion ? {} : {
+                posts: {
+                  select: {
+                    id: true,
+                    title: true,
+                    content: true,
+                    topic: true,
+                    createdAt: true
+                  }
+                }
+              })
+            },
+            take
+          })
+          break
+        case 'topic':
+          if (isSuggestion) {
+            results = await prisma.post.findMany({
+              where: { topic: { contains: term, mode: 'insensitive' } },
+              select: { topic: true },
+              distinct: ['topic'],
+              take
+            })
+            results = results.map((r : any)=> ({ suggestion: r.topic}))
+          } else {
+            results = await prisma.post.findMany({
+              where: { topic: { contains: term, mode: 'insensitive' } },
+              include: {
+                author: {
+                  select: { id: true, name: true, email: true }
+                }
+              },
+              take
+            })
+          }
+          break
+        case 'title':
+          if (isSuggestion) {
+            results = await prisma.post.findMany({
+              where: { title: { contains: term, mode: 'insensitive' } },
+              select: { id : true , title: true },
+              take
+            })
+            results = results.map((r : any) => ({ suggestion: r.title , id:r.id}))
+          } else {
+            results = await prisma.post.findMany({
+              where: { title: { contains: term, mode: 'insensitive' } },
+              include: {
+                author: {
+                  select: { id: true, name: true, email: true }
+                }
+              },
+              take
+            })
+          }
+          break
+        default:
+          return c.json({ error: 'Invalid search field' }, 400)
+      }
+
+      return c.json(results)
+    } catch (error) {
+      console.error('Error performing search:', error)
+      return c.json({ error: 'An error occurred while performing the search' }, 500)
+    }
+  })
+
 
 blog.get('/:id', async (c) => {
     const id = c.req.param('id')
@@ -74,6 +215,8 @@ blog.get('/:id', async (c) => {
             id : true ,
             title : true ,
             content : true ,
+            topic : true ,
+            createdAt : true ,
             author : {
                 select : {
                     name : true 
@@ -81,8 +224,9 @@ blog.get('/:id', async (c) => {
             }
         }
 	});
+    
 	return c.json(post);
-})
+}) ;
 
 blog.post('', async (c) => {
     const body = await c.req.json()
@@ -95,6 +239,7 @@ blog.post('', async (c) => {
     const post = await prisma.post.create({
         data : {
             title : body.title ,
+            topic : body.topic ,
             content : body.content ,
             authorId : c.get('userId')
         }
@@ -102,7 +247,8 @@ blog.post('', async (c) => {
     return c.json({id : post.id})
 })
 
-blog.put('', async (c) => {
+blog.put('/:id', async (c) => {
+    const id = c.req.param('id')
     const body = await c.req.json()
     const { success } = UpdatePostInput.safeParse(body);
 	if (!success) {
@@ -110,19 +256,57 @@ blog.put('', async (c) => {
 		return c.json({ error: "invalid input" });
 	}
     const userId = c.get('userId')
+
     const prisma = c.get('prisma')
     const post = await prisma.post.update({
         where : {
-            id : body.id ,
+            id : id ,
             authorId : userId
         },
         data : {
             title : body.title ,
-            content : body.content
+            topic : body.topic ,
+            content : body.content ,
         }
     })
 
-    return c.text(`${post.title} Post Updated`)
+    return c.json({id : post.id}) ;
 })
+
+blog.delete('',async (c) => {
+    const body = await c.req.json()
+    const userId = c.get('userId')
+    const prisma = c.get('prisma')
+    await prisma.post.delete({
+        where : {
+            id : body.id ,
+            authorId : userId
+        }
+    })
+    c.status(200)
+    return c.text(`Post Deleted`)
+})
+
+blog.post('/:id/like', async (c) => {
+    const prisma = c.get('prisma')
+    try {
+      const id = c.req.param('id') ;
+      const updatedPost = await prisma.post.update({
+        where: { id },
+        data: {
+          likes: {
+            increment: 1
+          }
+        },
+        select: { likes: true }
+      });
+  
+      return c.json({ likes: updatedPost.likes });
+    } catch (error) {
+      console.error('Error updating like:', error);
+        c.status(500)
+        c.json({ error: 'Internal server error' });
+    }
+  });
 
 export default blog
