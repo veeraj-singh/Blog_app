@@ -3,7 +3,7 @@ import axios from "axios" ;
 import { useState } from "react";
 import { url } from "../BackendURL";
 import { useNavigate } from "react-router-dom";
-import { Edit, Trash2, MessageSquare, Heart, Share2 , Check } from 'lucide-react';
+import { Edit, Trash2, Heart, Share2 , Check } from 'lucide-react';
 
 interface DeleteConfirmationModalProps {
   isOpen: boolean;
